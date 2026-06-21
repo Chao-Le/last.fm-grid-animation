@@ -1,0 +1,827 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Last.fm Animated Chart Generator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background-color: #111827; color: #f3f4f6; }
+        canvas { border-radius: 0.5rem; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); }
+        .loader {
+            border: 4px solid #374151;
+            border-top: 4px solid #ef4444;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-6">
+
+    <div class="max-w-7xl w-full grid grid-cols-1 lg:grid-cols-[1fr_2.4fr] gap-8">
+        
+        <!-- UI Controls Panel -->
+        <div class="bg-gray-800 p-5 rounded-xl shadow-xl flex flex-col gap-4 h-fit border border-gray-700 text-[13px]">
+            <div class="flex items-center gap-2 mb-1">
+                <h1 class="text-xl font-bold text-red-500">Last.fm Animator</h1>
+                <div class="group relative flex items-center justify-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="text-gray-400 hover:text-white cursor-help transition-colors" viewBox="0 0 16 16">
+                        <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/>
+                        <path d="m8.93 6.588-2.29.287-.082.38.45.083c.294.07.352.176.288.469l-.738 3.468c-.194.897.105 1.319.808 1.319.545 0 1.178-.252 1.465-.598l.088-.416c-.2.176-.492.246-.686.246-.275 0-.375-.193-.304-.533L8.93 6.588zM9 4.5a1 1 0 1 1-2 0 1 1 0 0 1 2 0z"/>
+                    </svg>
+                    <div class="hidden group-hover:block absolute top-full left-0 mt-2 w-64 p-2.5 bg-gray-900 text-gray-300 text-xs rounded-lg border border-gray-700 shadow-xl z-50 font-normal">
+                        Enter your username to see how your top albums have changed over time. This tool fetches your listening history and generates an animated video showing your old favorites being pushed out by your current top albums.
+                    </div>
+                </div>
+            </div>
+            
+            <div>
+                <label class="block font-medium text-gray-400 mb-1">Last.fm Username</label>
+                <input type="text" id="username" class="w-full bg-gray-900 border border-gray-700 rounded-lg p-2 text-white focus:ring-red-500 focus:border-red-500 outline-none" placeholder="e.g. RJ">
+            </div>
+
+            <div>
+                <div class="flex items-center gap-1.5 mb-1">
+                    <label class="block font-medium text-gray-400">Chart Timeframe</label>
+                    <div class="group relative flex items-center justify-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" class="text-gray-500 hover:text-white cursor-help transition-colors" viewBox="0 0 16 16">
+                            <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/>
+                            <path d="m8.93 6.588-2.29.287-.082.38.45.083c.294.07.352.176.288.469l-.738 3.468c-.194.897.105 1.319.808 1.319.545 0 1.178-.252 1.465-.598l.088-.416c-.2.176-.492.246-.686.246-.275 0-.375-.193-.304-.533L8.93 6.588zM9 4.5a1 1 0 1 1-2 0 1 1 0 0 1 2 0z"/>
+                        </svg>
+                        <div class="hidden group-hover:block absolute top-full left-0 mt-2 w-56 p-2.5 bg-gray-900 text-gray-300 text-xs rounded-lg border border-gray-700 shadow-xl z-50 font-normal">
+                            The window of time used to build both your past and present charts for the animation.
+                        </div>
+                    </div>
+                </div>
+                <select id="interval" class="w-full bg-gray-900 border border-gray-700 rounded-lg p-2 text-white focus:ring-red-500 outline-none">
+                    <option value="7">1 Week</option>
+                    <option value="30" selected>1 Month</option>
+                    <option value="365">1 Year</option>
+                </select>
+            </div>
+
+            <div>
+                <label class="block font-medium text-gray-400 mb-1">Start Date (DD/MM/YYYY)</label>
+                <div class="relative">
+                    <input type="text" id="startDate" placeholder="DD/MM/YYYY" class="w-full bg-gray-900 border border-gray-700 rounded-lg p-2 text-white focus:ring-red-500 outline-none pr-10">
+                    <input type="date" id="nativeDatePicker" class="absolute inset-0 w-0 h-0 opacity-0 pointer-events-none -z-10">
+                    <button type="button" id="calendarBtn" class="absolute right-2 top-1/2 transform -translate-y-1/2 p-1 text-gray-400 hover:text-white cursor-pointer transition-colors outline-none focus:text-red-500">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                            <path d="M3.5 0a.5.5 0 0 1 .5.5V1h8V.5a.5.5 0 0 1 1 0V1h1a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V3a2 2 0 0 1 2-2h1V.5a.5.5 0 0 1 .5-.5zM1 4v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V4H1z"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+
+            <div>
+                <label class="block font-medium text-gray-400 mb-1">Grid Size</label>
+                <select id="gridSize" class="w-full bg-gray-900 border border-gray-700 rounded-lg p-2 text-white focus:ring-red-500 outline-none">
+                    <option value="5" selected>5x5</option>
+                    <option value="7">7x7</option>
+                    <option value="10">10x10</option>
+                </select>
+            </div>
+
+            <div>
+                <label class="block font-medium text-gray-400 mb-1">Animation Speed (Moves/Sec)</label>
+                <input type="number" id="speed" value="1.5" min="0.5" max="10" step="0.5" class="w-full bg-gray-900 border border-gray-700 rounded-lg p-2 text-white focus:ring-red-500 outline-none">
+            </div>
+
+            <div class="flex items-center mt-1">
+                <input type="checkbox" id="showText" class="w-4 h-4 text-red-600 bg-gray-900 border-gray-700 rounded focus:ring-red-500" checked>
+                <label for="showText" class="ml-2 font-medium text-gray-400">Overlay Artist & Album Text</label>
+            </div>
+
+            <div class="group relative w-full mt-1">
+                <button id="startBtn" class="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-2.5 px-3 rounded-lg transition duration-200">
+                    Fetch Data
+                </button>
+                <div class="hidden group-hover:block absolute bottom-full left-0 mb-2 w-full p-2.5 bg-gray-900 text-gray-300 text-xs rounded-lg border border-gray-700 shadow-xl z-50 pointer-events-none text-center font-normal">
+                    Please be patient! We have to download your data page-by-page while respecting Last.fm's speed limits to ensure your connection doesn't get blocked.
+                </div>
+            </div>
+
+            <button id="playBtn" class="hidden w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-3 rounded-lg transition duration-200 mt-1">
+                Start Animation
+            </button>
+
+            <!-- Status Section -->
+            <div id="statusContainer" class="hidden flex items-center mt-1">
+                <div id="spinner" class="loader hidden" style="width: 16px; height: 16px; border-width: 2px;"></div>
+                <span id="statusText" class="ml-2 font-medium text-gray-400">Idle</span>
+            </div>
+
+            <div id="actionBtns" class="hidden flex gap-2 mt-1">
+                <button id="replayBtn" class="w-1/2 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-3 rounded-lg transition duration-200">
+                    Replay
+                </button>
+                <button id="downloadBtn" class="w-1/2 bg-green-600 hover:bg-green-700 text-white font-bold py-2.5 px-3 rounded-lg transition duration-200">
+                    Download
+                </button>
+            </div>
+        </div>
+
+        <!-- Canvas Panel -->
+        <div class="flex justify-center items-center lg:h-[calc(100vh-3rem)] overflow-hidden relative">
+            <canvas id="canvas" width="720" height="720" class="max-w-full w-auto max-h-[60vh] lg:max-h-full aspect-square bg-black object-contain"></canvas>
+        </div>
+    </div>
+
+    <script>
+        // --- Core Application Logic ---
+        
+        const API_URL = 'https://ws.audioscrobbler.com/2.0/';
+        const REQUEST_DELAY = 250; // Respect Last.fm limits (~4-5 req/sec)
+        const BUILTIN_API_KEY = '4a9f5581a9cdf20a699f540ac52a95c9';
+        
+        // Grid setup (Dynamic)
+        let GRID_COLS = 5;
+        let GRID_ROWS = 5;
+        let TOP_N = GRID_COLS * GRID_ROWS;
+        const CANVAS_SIZE = 720;
+        let ALBUM_SIZE = CANVAS_SIZE / GRID_COLS;
+        let MOVE_DURATION = 500; // ms per move interpolation
+
+        // State
+        let pastChart = [];
+        let presentChart = [];
+        let uniqueAlbums = new Map(); // key -> { name, artist, imgUrl, imageObj }
+        let moves = []; // Sequence of { key, fromIdx, toIdx, kicksOut }
+        let displayGrid = []; // Array of size TOP_N tracking current positions
+        let pastDateObj = null;
+        let presentDateObj = null;
+
+        // Animation State
+        let isAnimating = false;
+        let moveIndex = 0;
+        let moveProgress = 0;
+        let moveJustStarted = true;
+        
+        // Recording
+        let mediaRecorder;
+        let recordedChunks = [];
+        let currentVideoUrl = null;
+        
+        // DOM Elements
+        const ui = {
+            username: document.getElementById('username'),
+            interval: document.getElementById('interval'),
+            startDate: document.getElementById('startDate'),
+            nativeDatePicker: document.getElementById('nativeDatePicker'),
+            calendarBtn: document.getElementById('calendarBtn'),
+            gridSize: document.getElementById('gridSize'),
+            speed: document.getElementById('speed'),
+            showText: document.getElementById('showText'),
+            startBtn: document.getElementById('startBtn'),
+            playBtn: document.getElementById('playBtn'),
+            actionBtns: document.getElementById('actionBtns'),
+            replayBtn: document.getElementById('replayBtn'),
+            downloadBtn: document.getElementById('downloadBtn'),
+            statusContainer: document.getElementById('statusContainer'),
+            statusText: document.getElementById('statusText'),
+            spinner: document.getElementById('spinner'),
+            canvas: document.getElementById('canvas')
+        };
+
+        const ctx = ui.canvas.getContext('2d', { alpha: false });
+
+        // Initialize Dates
+        const today = new Date();
+        const defaultStart = new Date();
+        defaultStart.setMonth(defaultStart.getMonth() - 6);
+        
+        const defaultD = String(defaultStart.getDate()).padStart(2, '0');
+        const defaultM = String(defaultStart.getMonth() + 1).padStart(2, '0');
+        const defaultY = defaultStart.getFullYear();
+        ui.startDate.value = `${defaultD}/${defaultM}/${defaultY}`;
+        ui.nativeDatePicker.value = `${defaultY}-${defaultM}-${defaultD}`;
+
+        // Sync native picker to text input
+        ui.nativeDatePicker.addEventListener('change', (e) => {
+            if (!e.target.value) return;
+            const [y, m, d] = e.target.value.split('-');
+            ui.startDate.value = `${d}/${m}/${y}`;
+        });
+
+        // Open native picker via button click
+        ui.calendarBtn.addEventListener('click', () => {
+            try {
+                ui.nativeDatePicker.showPicker();
+            } catch (error) {
+                console.warn("showPicker not supported by browser");
+            }
+        });
+
+        // --- Utility Functions ---
+        
+        const delay = ms => new Promise(res => setTimeout(res, ms));
+        
+        function updateStatus(text, progress = null, showSpinner = true) {
+            ui.statusContainer.classList.remove('hidden');
+            ui.statusText.textContent = text;
+            ui.spinner.style.display = showSpinner ? 'block' : 'none';
+        }
+
+        function getAlbumKey(artist, album) {
+            return `${artist}|||${album}`;
+        }
+
+        function syncConfig() {
+            GRID_COLS = parseInt(ui.gridSize.value);
+            GRID_ROWS = GRID_COLS;
+            TOP_N = GRID_COLS * GRID_ROWS;
+            
+            // Grid fully occupies the 90% scaled area
+            const DRAW_AREA = CANVAS_SIZE * 0.9;
+            ALBUM_SIZE = DRAW_AREA / GRID_COLS;
+            
+            const movesPerSec = parseFloat(ui.speed.value) || 2;
+            MOVE_DURATION = 1000 / movesPerSec;
+        }
+
+        // --- Data Fetching (Highly Optimized for 2 Windows) ---
+
+        async function fetchChartForWindow(user, key, fromUnix, toUnix, label) {
+            let counts = new Map();
+            let page = 1;
+            let totalPages = 1;
+
+            do {
+                updateStatus(`Fetching ${label} data (Page ${page}/${totalPages || '?'})...`, null, true);
+                const url = `${API_URL}?method=user.getrecenttracks&user=${user}&api_key=${key}&format=json&from=${fromUnix}&to=${toUnix}&limit=200&page=${page}`;
+                const res = await fetch(url);
+                const data = await res.json();
+
+                if (!data.recenttracks) throw new Error(data.message || "Invalid API response");
+
+                totalPages = parseInt(data.recenttracks['@attr'].totalPages);
+                const tracks = data.recenttracks.track;
+                const trackList = Array.isArray(tracks) ? tracks : (tracks ? [tracks] : []);
+
+                trackList.forEach(t => {
+                    if (t['@attr'] && t['@attr'].nowplaying) return;
+                    if (!t.album || !t.album['#text']) return;
+
+                    const albumName = t.album['#text'];
+                    const artistName = t.artist['#text'];
+                    let imgUrl = '';
+                    if (t.image && t.image.length > 0) {
+                        imgUrl = t.image[t.image.length - 1]['#text'];
+                    }
+                    const trackKey = getAlbumKey(artistName, albumName);
+
+                    if (!uniqueAlbums.has(trackKey)) {
+                        uniqueAlbums.set(trackKey, { name: albumName, artist: artistName, imgUrl: imgUrl, imageObj: null });
+                    }
+
+                    counts.set(trackKey, (counts.get(trackKey) || 0) + 1);
+                });
+
+                page++;
+                if (page <= totalPages) await delay(REQUEST_DELAY);
+
+            } while (page <= totalPages);
+
+            const ranked = Array.from(counts.entries())
+                .map(([k, count]) => ({ key: k, count }))
+                .sort((a, b) => b.count - a.count)
+                .slice(0, TOP_N);
+
+            // Pad with nulls if empty spots
+            while (ranked.length < TOP_N) {
+                ranked.push(null);
+            }
+
+            return ranked;
+        }
+
+        async function fetchPresentChartFast(user, key, period) {
+            updateStatus(`Fetching Present data directly...`, null, true);
+            const url = `${API_URL}?method=user.gettopalbums&user=${user}&api_key=${key}&period=${period}&format=json&limit=${TOP_N}`;
+            const res = await fetch(url);
+            const data = await res.json();
+
+            if (!data.topalbums) throw new Error(data.message || "Invalid API response");
+
+            const albums = data.topalbums.album;
+            const albumList = Array.isArray(albums) ? albums : (albums ? [albums] : []);
+
+            const ranked = [];
+
+            albumList.forEach(a => {
+                if (!a.name || !a.artist || !a.artist.name) return;
+
+                const albumName = a.name;
+                const artistName = a.artist.name;
+                let imgUrl = '';
+                if (a.image && a.image.length > 0) {
+                    imgUrl = a.image[a.image.length - 1]['#text'];
+                }
+                const trackKey = getAlbumKey(artistName, albumName);
+
+                if (!uniqueAlbums.has(trackKey)) {
+                    uniqueAlbums.set(trackKey, { name: albumName, artist: artistName, imgUrl: imgUrl, imageObj: null });
+                }
+
+                ranked.push({ key: trackKey, count: parseInt(a.playcount) });
+            });
+
+            const sliced = ranked.slice(0, TOP_N);
+
+            // Pad with nulls if empty spots
+            while (sliced.length < TOP_N) {
+                sliced.push(null);
+            }
+
+            return sliced;
+        }
+
+        async function fetchLastFmData() {
+            syncConfig();
+            const user = ui.username.value.trim();
+            const apiKey = BUILTIN_API_KEY;
+            
+            const dateStr = ui.startDate.value.trim();
+            const dateParts = dateStr.split('/');
+            if (dateParts.length !== 3) return alert("Please enter the start date in DD/MM/YYYY format.");
+            
+            const [day, month, year] = dateParts;
+            const startDateObj = new Date(year, month - 1, day);
+            if (isNaN(startDateObj.getTime())) return alert("Invalid date provided.");
+            
+            if (!user) return alert("Please enter your Username.");
+
+            ui.startBtn.disabled = true;
+            ui.startBtn.classList.add('opacity-50', 'cursor-not-allowed');
+            ui.playBtn.classList.add('hidden');
+            ui.actionBtns.classList.add('hidden');
+            uniqueAlbums.clear();
+            
+            try {
+                const intervalDays = parseInt(ui.interval.value);
+                const intervalMs = intervalDays * 24 * 60 * 60 * 1000;
+
+                pastDateObj = startDateObj;
+                const pastEndTs = pastDateObj.getTime();
+                const pastStartTs = pastEndTs - intervalMs;
+                
+                presentDateObj = new Date();
+
+                // Map UI interval to Last.fm period strings
+                let periodStr = '1month';
+                if (ui.interval.value === '7') periodStr = '7day';
+                else if (ui.interval.value === '365') periodStr = '12month';
+
+                // Fetch the two static points in time using the hybrid strategy
+                pastChart = await fetchChartForWindow(user, apiKey, Math.floor(pastStartTs/1000), Math.floor(pastEndTs/1000), "Past");
+                presentChart = await fetchPresentChartFast(user, apiKey, periodStr);
+
+                updateStatus("Calculating animation sequence...", 100);
+                await delay(200);
+                calculateMoves();
+
+                updateStatus("Preloading album artwork...", 100);
+                await preloadImages();
+
+                updateStatus("Data ready! Click 'Start Animation'.", 100, false);
+                ui.playBtn.classList.remove('hidden');
+                ui.startBtn.disabled = false;
+                ui.startBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+
+            } catch (error) {
+                console.error(error);
+                alert("Error: " + error.message);
+                updateStatus("Error occurred.", 0, false);
+                ui.startBtn.disabled = false;
+                ui.startBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+            }
+        }
+
+        // --- Logic: Generating the Kicking-Out Sequence ---
+
+        function calculateMoves() {
+            let currentKeys = pastChart.map(x => x ? x.key : null);
+            let targetKeys = presentChart.map(x => x ? x.key : null);
+            moves = [];
+            let hand = null;
+            let handFromIdx = -1;
+
+            let loopSafety = 0;
+
+            while (loopSafety < 10000) {
+                loopSafety++;
+                if (hand !== null) {
+                    // Album is in hand, find its place in the new chart
+                    let targetIdx = targetKeys.indexOf(hand);
+                    if (targetIdx !== -1) {
+                        let occupant = currentKeys[targetIdx];
+                        moves.push({ key: hand, fromIdx: handFromIdx, toIdx: targetIdx, kicksOut: occupant });
+                        currentKeys[targetIdx] = hand;
+                        hand = occupant;
+                        handFromIdx = targetIdx;
+                    } else {
+                        // Not in the new chart, falls down off screen
+                        moves.push({ key: hand, fromIdx: handFromIdx, toIdx: -1, kicksOut: null });
+                        hand = null;
+                        handFromIdx = -1;
+                    }
+                } else {
+                    // Hand is empty, scan for the next mismatch starting from #1 (index 0)
+                    let mismatchIdx = -1;
+                    for (let i = 0; i < TOP_N; i++) {
+                        if (currentKeys[i] !== targetKeys[i]) {
+                            mismatchIdx = i;
+                            break;
+                        }
+                    }
+
+                    if (mismatchIdx === -1) break; // Everything matches perfectly!
+
+                    let incomingKey = targetKeys[mismatchIdx];
+                    if (incomingKey === null) {
+                        // Target slot should be empty, push current occupant off
+                        let occupant = currentKeys[mismatchIdx];
+                        moves.push({ key: occupant, fromIdx: mismatchIdx, toIdx: -1, kicksOut: null });
+                        currentKeys[mismatchIdx] = null;
+                    } else {
+                        // Find where the incoming album currently is (if anywhere)
+                        let sourceIdx = currentKeys.indexOf(incomingKey);
+                        if (sourceIdx !== -1) {
+                            currentKeys[sourceIdx] = null; // It leaves its old spot to fly over
+                        }
+                        let occupant = currentKeys[mismatchIdx];
+                        moves.push({ key: incomingKey, fromIdx: sourceIdx, toIdx: mismatchIdx, kicksOut: occupant });
+                        currentKeys[mismatchIdx] = incomingKey;
+                        hand = occupant;
+                        handFromIdx = mismatchIdx;
+                    }
+                }
+            }
+        }
+
+        // --- Image Preloading ---
+
+        async function preloadImages() {
+            const neededKeys = new Set();
+            pastChart.forEach(item => { if (item) neededKeys.add(item.key); });
+            presentChart.forEach(item => { if (item) neededKeys.add(item.key); });
+
+            const loadPromises = [];
+            for (const key of neededKeys) {
+                const albumInfo = uniqueAlbums.get(key);
+                if (albumInfo && albumInfo.imgUrl) {
+                    const p = new Promise(resolve => {
+                        const img = new Image();
+                        img.crossOrigin = "Anonymous";
+                        img.onload = () => { albumInfo.imageObj = img; resolve(); };
+                        img.onerror = () => { resolve(); };
+                        img.src = albumInfo.imgUrl;
+                    });
+                    loadPromises.push(p);
+                }
+            }
+            await Promise.allSettled(loadPromises);
+        }
+
+        // --- Animation Engine ---
+
+        function startAnimationAndRecording() {
+            displayGrid = pastChart.map(x => x ? x.key : null);
+            moveIndex = 0;
+            moveProgress = 0;
+            moveJustStarted = true;
+            isAnimating = true;
+
+            ctx.fillStyle = '#0a0a0a';
+            ctx.fillRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
+
+            const stream = ui.canvas.captureStream(30);
+            let options = { mimeType: 'video/webm; codecs=vp9' };
+            if (!MediaRecorder.isTypeSupported(options.mimeType)) options = { mimeType: 'video/webm' };
+
+            mediaRecorder = new MediaRecorder(stream, options);
+            recordedChunks = [];
+
+            mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) recordedChunks.push(e.data); };
+            mediaRecorder.onstop = () => {
+                const blob = new Blob(recordedChunks, { type: 'video/webm' });
+                
+                // Cleanup old URL to prevent memory leaks on replay
+                if (currentVideoUrl) URL.revokeObjectURL(currentVideoUrl);
+                currentVideoUrl = URL.createObjectURL(blob);
+                
+                ui.downloadBtn.onclick = () => {
+                    const a = document.createElement('a');
+                    a.style.display = 'none';
+                    a.href = currentVideoUrl;
+                    a.download = `lastfm-morph-${new Date().toISOString().split('T')[0]}.webm`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                };
+                ui.actionBtns.classList.remove('hidden');
+                updateStatus("Video ready for download!", 100, false);
+                ui.startBtn.disabled = false;
+                ui.startBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+            };
+
+            mediaRecorder.start();
+
+            // Render a few static frames at start so viewer sees past chart initially
+            drawScene(null, 0);
+            setTimeout(() => {
+                lastFrameTime = performance.now();
+                requestAnimationFrame(renderLoop);
+            }, 1000);
+        }
+
+        let lastFrameTime = 0;
+
+        function getGridPos(index) {
+            const OFFSET = CANVAS_SIZE * 0.05; // Center the 90% drawing area
+            const col = index % GRID_COLS;
+            const row = Math.floor(index / GRID_COLS);
+            return {
+                x: OFFSET + col * ALBUM_SIZE,
+                y: OFFSET + row * ALBUM_SIZE
+            };
+        }
+
+        function getPushVector(fromIdx, toIdx) {
+            if (fromIdx === -1) {
+                return { x: ALBUM_SIZE * 0.6, y: -ALBUM_SIZE * 0.4 }; // Jump from bottom pushes up-right
+            }
+            if (toIdx === -1) return { x: 0, y: 0 }; // Not pushing anyone if going to void
+
+            const src = getGridPos(fromIdx);
+            const dst = getGridPos(toIdx);
+            let dx = dst.x - src.x;
+            let dy = dst.y - src.y;
+            let dist = Math.sqrt(dx*dx + dy*dy);
+            
+            // If it's a very short hop or identical (shouldn't happen), push sideways
+            if (dist === 0) return { x: ALBUM_SIZE * 0.75, y: ALBUM_SIZE * 0.2 };
+
+            // Normalize and multiply to push 75% out of the way
+            return {
+                x: (dx / dist) * ALBUM_SIZE * 0.75,
+                y: (dy / dist) * ALBUM_SIZE * 0.75
+            };
+        }
+
+        function renderLoop(timestamp) {
+            if (!isAnimating) return;
+
+            const dt = timestamp - lastFrameTime;
+            lastFrameTime = timestamp;
+
+            if (moveIndex < moves.length) {
+                const currentMove = moves[moveIndex];
+
+                if (moveJustStarted) {
+                    if (currentMove.fromIdx !== -1 && displayGrid[currentMove.fromIdx] === currentMove.key) {
+                        displayGrid[currentMove.fromIdx] = null; // Blank original spot during move
+                    }
+                    moveJustStarted = false;
+                }
+
+                moveProgress += dt / MOVE_DURATION;
+                let currentProg = Math.min(moveProgress, 1.0);
+
+                drawScene(currentMove, currentProg);
+
+                if (moveProgress >= 1.0) {
+                    if (currentMove.toIdx !== -1) {
+                        displayGrid[currentMove.toIdx] = currentMove.key;
+                    }
+                    moveIndex++;
+                    moveProgress = 0;
+                    moveJustStarted = true;
+                    
+                    if (moveIndex >= moves.length) {
+                        isAnimating = false;
+                        drawScene(null, 1.0); // final frame
+                        setTimeout(() => mediaRecorder.stop(), 1500); // Pad end with final picture
+                        return;
+                    }
+                }
+            } else {
+                isAnimating = false;
+                drawScene(null, 1.0);
+                setTimeout(() => mediaRecorder.stop(), 1500);
+                return;
+            }
+
+            requestAnimationFrame(renderLoop);
+        }
+
+        function drawScene(currentMove, prog) {
+            ctx.fillStyle = '#0a0a0a';
+            ctx.fillRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
+
+            // Draw underlying grid items
+            for (let i = 0; i < TOP_N; i++) {
+                const key = displayGrid[i];
+                if (!key) continue;
+                let pos = getGridPos(i);
+                let rot = 0;
+                
+                // Kick-out sideways push effect
+                if (currentMove && i === currentMove.toIdx && currentMove.kicksOut === key) {
+                    // Only start pushing when the incoming album is close (last 60% of animation)
+                    if (prog > 0.4) {
+                        const pushProg = (prog - 0.4) / 0.6;
+                        // Use sine for a smooth easing on the push
+                        const easePush = Math.sin(pushProg * Math.PI / 2);
+                        const pushVec = getPushVector(currentMove.fromIdx, currentMove.toIdx);
+                        pos.x += pushVec.x * easePush;
+                        pos.y += pushVec.y * easePush;
+                        
+                        // Add some rotation to the pushed album
+                        rot = (pushVec.x > 0 ? 1 : -1) * easePush * 0.15;
+                    }
+                }
+                
+                drawAlbum(key, pos, false, rot);
+            }
+
+            // Draw the actively moving album overlaid
+            if (currentMove) {
+                let startPos;
+                if (currentMove.fromIdx === -1) {
+                    startPos = { x: getGridPos(currentMove.toIdx).x, y: CANVAS_SIZE + 200 };
+                } else {
+                    startPos = getGridPos(currentMove.fromIdx);
+                    // Check if it was kicked out in the previous step of the chain reaction
+                    if (moveIndex > 0) {
+                        const prevMove = moves[moveIndex - 1];
+                        if (prevMove.toIdx === currentMove.fromIdx && prevMove.kicksOut === currentMove.key) {
+                            const prevPushVec = getPushVector(prevMove.fromIdx, prevMove.toIdx);
+                            startPos.x += prevPushVec.x;
+                            startPos.y += prevPushVec.y;
+                        }
+                    }
+                }
+
+                let endPos;
+                if (currentMove.toIdx === -1) {
+                    endPos = { x: startPos.x, y: CANVAS_SIZE + 200 };
+                } else {
+                    endPos = getGridPos(currentMove.toIdx);
+                }
+                
+                let currentPos = { x: 0, y: 0 };
+                let rotation = 0;
+                let customScale = null;
+                
+                if (currentMove.fromIdx === -1) {
+                    // Jumping up: Shifted hang time to 80% of the animation duration
+                    const HANG_TIME = 0.8;
+                    const HANG_POS = 0.95; // Reaches 95% of the way there, then pauses
+                    
+                    let t = 0;
+                    let swellProg = 0;
+                    
+                    if (prog < HANG_TIME) {
+                        let p = prog / HANG_TIME;
+                        t = HANG_POS * (1 - Math.pow(1 - p, 3)); // Decelerates to 0 speed
+                        swellProg = p;
+                    } else {
+                        let p = (prog - HANG_TIME) / (1 - HANG_TIME);
+                        t = HANG_POS + (1 - HANG_POS) * Math.pow(p, 3); // Accelerates from 0 speed
+                        swellProg = 1 - p;
+                    }
+                    
+                    currentPos.x = endPos.x;
+                    currentPos.y = startPos.y + (endPos.y - startPos.y) * t;
+                    
+                    // Swell dynamically tracks the deceleration and peaks exactly at HANG_TIME
+                    const swell = Math.sin(swellProg * Math.PI / 2);
+                    customScale = 1.15 + Math.pow(swell, 2) * 0.55;
+                } else if (currentMove.toIdx === -1) {
+                    // Falling down (Cubic ease-in with dramatic shake)
+                    const t = prog * prog * prog; 
+                    currentPos.x = startPos.x;
+                    currentPos.y = startPos.y + (endPos.y - startPos.y) * t;
+                    
+                    // Shake violently side to side and rotate
+                    currentPos.x += Math.sin(prog * Math.PI * 25) * 20 * (1 - prog);
+                    rotation = Math.sin(prog * Math.PI * 15) * 0.5 * (1 - prog);
+                } else {
+                    // Normal grid-to-grid move (Ease-in-out with curved arc)
+                    const t = prog < 0.5 ? 2 * prog * prog : -1 + (4 - 2 * prog) * prog;
+                    currentPos.x = startPos.x + (endPos.x - startPos.x) * t;
+                    currentPos.y = startPos.y + (endPos.y - startPos.y) * t;
+                    
+                    // Add curve height (arc) dependent on the travel distance
+                    const dx = endPos.x - startPos.x;
+                    const dy = endPos.y - startPos.y;
+                    const dist = Math.sqrt(dx*dx + dy*dy);
+                    const arcHeight = dist * 0.4;
+                    currentPos.y -= Math.sin(t * Math.PI) * arcHeight;
+                }
+                
+                drawAlbum(currentMove.key, currentPos, true, rotation, customScale);
+            }
+        }
+
+        function drawAlbum(key, pos, isMoving, rotation = 0, customScale = null) {
+            if (!key) return;
+            const album = uniqueAlbums.get(key);
+            if (!album) return;
+
+            const padding = 4;
+            let size = ALBUM_SIZE - (padding * 2);
+            let x = pos.x + padding;
+            let y = pos.y + padding;
+
+            ctx.save();
+            
+            // Apply rotation around the center of the album for falling/pushed effect
+            if (rotation !== 0) {
+                const centerX = pos.x + ALBUM_SIZE / 2;
+                const centerY = pos.y + ALBUM_SIZE / 2;
+                ctx.translate(centerX, centerY);
+                ctx.rotate(rotation);
+                ctx.translate(-centerX, -centerY);
+            }
+
+            if (isMoving) {
+                // Slightly enlarge to fly over other cards
+                const scale = customScale !== null ? customScale : 1.15;
+                const diff = (size * scale - size) / 2;
+                x -= diff;
+                y -= diff;
+                size *= scale;
+
+                ctx.shadowColor = 'rgba(0,0,0,0.8)';
+                ctx.shadowBlur = 15;
+                ctx.shadowOffsetX = 5;
+                ctx.shadowOffsetY = 10;
+            }
+
+            if (album.imageObj && album.imageObj.complete && album.imageObj.naturalHeight !== 0) {
+                ctx.drawImage(album.imageObj, x, y, size, size);
+            } else {
+                ctx.fillStyle = '#1f2937';
+                ctx.fillRect(x, y, size, size);
+            }
+
+            if (ui.showText.checked) {
+                const gradient = ctx.createLinearGradient(x, y + size * 0.6, x, y + size);
+                gradient.addColorStop(0, 'rgba(0,0,0,0)');
+                gradient.addColorStop(1, 'rgba(0,0,0,0.8)');
+                ctx.fillStyle = gradient;
+                ctx.fillRect(x, y + size * 0.5, size, size * 0.5);
+
+                const fontSizeArtist = Math.max(9, Math.floor(size * 0.12));
+                const fontSizeAlbum = Math.max(8, Math.floor(size * 0.10));
+
+                ctx.fillStyle = '#ffffff';
+                ctx.font = `bold ${fontSizeArtist}px sans-serif`;
+                ctx.textAlign = 'left';
+                let artistText = album.artist;
+                if(ctx.measureText(artistText).width > size - 8) {
+                    artistText = artistText.substring(0, Math.floor(size/fontSizeArtist * 1.5)) + '...';
+                }
+                ctx.fillText(artistText, x + 4, y + size - fontSizeAlbum - 6);
+
+                ctx.fillStyle = '#9ca3af';
+                ctx.font = `${fontSizeAlbum}px sans-serif`;
+                let nameText = album.name;
+                if(ctx.measureText(nameText).width > size - 8) {
+                    nameText = nameText.substring(0, Math.floor(size/fontSizeAlbum * 1.8)) + '...';
+                }
+                ctx.fillText(nameText, x + 4, y + size - 4);
+            }
+
+            ctx.restore();
+        }
+
+        // Attach Event Listeners
+        ui.startBtn.addEventListener('click', fetchLastFmData);
+        
+        ui.playBtn.addEventListener('click', async () => {
+            ui.playBtn.classList.add('hidden');
+            ui.startBtn.disabled = true;
+            ui.startBtn.classList.add('opacity-50', 'cursor-not-allowed');
+            syncConfig();
+            updateStatus("Recording Animation...", 100, false);
+            startAnimationAndRecording();
+        });
+
+        ui.replayBtn.addEventListener('click', () => {
+            ui.actionBtns.classList.add('hidden');
+            ui.startBtn.disabled = true;
+            ui.startBtn.classList.add('opacity-50', 'cursor-not-allowed');
+            syncConfig();
+            updateStatus("Recording Animation...", 100, false);
+            startAnimationAndRecording();
+        });
+
+    </script>
+</body>
+</html>
