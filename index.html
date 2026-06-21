@@ -159,6 +159,8 @@
         let moveIndex = 0;
         let moveProgress = 0;
         let moveJustStarted = true;
+        let isPaddingEnd = false;
+        let paddingTimer = 0;
         
         // Recording
         let mediaRecorder;
@@ -494,6 +496,8 @@
             moveProgress = 0;
             moveJustStarted = true;
             isAnimating = true;
+            isPaddingEnd = false;
+            paddingTimer = 0;
 
             ctx.fillStyle = '#0a0a0a';
             ctx.fillRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
@@ -578,7 +582,15 @@
             const dt = timestamp - lastFrameTime;
             lastFrameTime = timestamp;
 
-            if (moveIndex < moves.length) {
+            if (isPaddingEnd) {
+                paddingTimer += dt;
+                drawScene(null, 1.0); // Keep drawing to ensure the stream captures the final frames
+                if (paddingTimer >= 2000) { // 2 seconds of static display
+                    isAnimating = false;
+                    mediaRecorder.stop();
+                    return;
+                }
+            } else if (moveIndex < moves.length) {
                 const currentMove = moves[moveIndex];
 
                 if (moveJustStarted) {
@@ -602,17 +614,13 @@
                     moveJustStarted = true;
                     
                     if (moveIndex >= moves.length) {
-                        isAnimating = false;
-                        drawScene(null, 1.0); // final frame
-                        setTimeout(() => mediaRecorder.stop(), 1500); // Pad end with final picture
-                        return;
+                        isPaddingEnd = true;
+                        paddingTimer = 0;
                     }
                 }
             } else {
-                isAnimating = false;
-                drawScene(null, 1.0);
-                setTimeout(() => mediaRecorder.stop(), 1500);
-                return;
+                isPaddingEnd = true;
+                paddingTimer = 0;
             }
 
             requestAnimationFrame(renderLoop);
